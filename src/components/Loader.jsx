@@ -195,6 +195,10 @@ const Loader = () => {
 }
 
 const StyledWrapper = styled.div`
+ position: fixed;
+  inset: 0;
+  background-color: #F5F6F0;
+  z-index: 9999;
   .socket {
     width: 200px;
     height: 200px;

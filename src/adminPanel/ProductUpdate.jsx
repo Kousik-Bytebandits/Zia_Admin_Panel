@@ -5,13 +5,14 @@ import endpoint_prefix from '../config/ApiConfig';
 import "react-datepicker/dist/react-datepicker.css";
 import NotificationPopup from '../components/NotificatioPopup';
 import { useParams } from "react-router-dom";
-
+import Loader from '../components/Loader';
 
 export default function ProductUpdate() {
   const inputClasses = "w-full p-2 border border-gray-300 rounded-md  text-sm";
   
  const { productId } = useParams();
-console.log("Product ID:", productId);
+
+const [isLoading, setIsLoading] = useState(false);
 
 
 
@@ -90,11 +91,17 @@ console.log("Product ID:", productId);
 
  const handleImageChange = (e, key) => {
   const file = e.target.files[0];
+  const { name, value } = e.target;
   if (file) {
     setImages((prev) => ({ ...prev, [key]: file }));
     setImagePreviews((prev) => ({ ...prev, [key]: URL.createObjectURL(file) }));
   } else {
     console.warn(`No file selected for ${key}`);
+  }
+   if (name === "mfgDate" || name === "expDate") {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  } else {
+    setFormData((prev) => ({ ...prev, [name]: value }));
   }
 };
 
@@ -117,22 +124,23 @@ const fetchProductDetails = async (productId) => {
       return;
     }
 
-    // Format DD-MM-YY to YYYY-MM-DD
-    const formatDate = (dateString) => {
-      if (!dateString) return "";
-      const [day, month, year] = dateString.split("-");
-      return `20${year}-${month}-${day}`; // 
-    };
+   const formatToInputDate = (dateString) => {
+  if (!dateString || !dateString.includes("-")) return "";
+  const [day, month, year] = dateString.split("-");
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+};
+
+
 
     setFormData({
       productName: product.name || "",
       sku: product.sku || "",
       category: product.category || "shampoo",
-      mfgDate: formatDate(product.manufacturing_date),
-      expDate: formatDate(product.expiry_date),
+      mfgDate: formatToInputDate(product.manufacturing_date),
+expDate: formatToInputDate(product.expiry_date),
       price: product.price || "",
       discount: product.discount || "",
-      warehouse: "Zia-guindy", // hardcoded
+      warehouse: "Zia-guindy", 
       batchCode: product.stock || "",
       isActive: Number(product.is_active) === 1 ? "Active" : "Inactive",
       isFeatured: Number(product.is_featured) === 1 ? "Yes" : "No",
@@ -182,38 +190,39 @@ useEffect(() => {
 
 
 const handleSubmit = async () => {
- 
-const requiredFields = [
-  { field: formData.productName, name: "Product Name" },
-  { field: formData.sku, name: "SKU" },
-  { field: formData.category, name: "Category" },
-  { field: formData.price, name: "Price" },
-];
+  setIsLoading(true); // ✅ Show loader
 
-for (const { field, name } of requiredFields) {
-  const value = String(field ?? "").trim(); // force string safely
-  if (!value) {
-    showPopup("error", `${name} is required`);
-    return;
+  const requiredFields = [
+    { field: formData.productName, name: "Product Name" },
+    { field: formData.sku, name: "SKU" },
+    { field: formData.category, name: "Category" },
+    { field: formData.price, name: "Price" },
+  ];
+
+  for (const { field, name } of requiredFields) {
+    const value = String(field ?? "").trim();
+    if (!value) {
+      showPopup("error", `${name} is required`);
+      setIsLoading(false); 
+      return;
+    }
   }
-}
 
   const toNumber = (val, fallback = 0) => {
     const num = parseFloat(val?.toString().trim());
     return isNaN(num) ? fallback : num;
   };
 
-  const convertToISODate = (ddmmyyyy) => {
-    if (!ddmmyyyy) return "";
-    const [day, month, year] = ddmmyyyy.split("-");
-    return `${year}-${month}-${day}`;
-  };
+const convertToDDMMYYYY = (input) => {
+  if (!input) return "";
+  const [year, month, day] = input.split("-");
+  return `${day}-${month}-${year}`;
+};
 
-  
+
+
 
   const payload = new FormData();
-
-  // Core product fields
   payload.append("product_name", formData.productName.trim());
   payload.append("sku", formData.sku.trim());
   payload.append("category", formData.category.trim());
@@ -227,10 +236,10 @@ for (const { field, name } of requiredFields) {
   payload.append("Features", formData.features.trim());
   payload.append("How_To_Use", formData.howToUse.trim());
   payload.append("Ingredients", formData.ingredients.trim());
-  payload.append("manufacturing_Date", convertToISODate(formData.mfgDate.trim()));
-  payload.append("Expiry_Date", convertToISODate(formData.expDate.trim()));
+  payload.append("manufacturing_Date", convertToDDMMYYYY(formData.mfgDate));
+payload.append("Expiry_Date", convertToDDMMYYYY(formData.expDate));
 
-  // Specifications as JSON
+
   const safeSpecs = {
     "item-LWH": formData.specifications.Item_LWH,
     "item-Weight": toNumber(formData.specifications.Item_Weight),
@@ -239,7 +248,6 @@ for (const { field, name } of requiredFields) {
   };
   payload.append("Product_Spesifications", JSON.stringify(safeSpecs));
 
-  // Append updated images if any
   if (images.Primary_Image) payload.append("primary_image", images.Primary_Image);
   if (images.Secondary_Image) payload.append("secondary_image", images.Secondary_Image);
   if (images.Normal_Image1) payload.append("normal1_image", images.Normal_Image1);
@@ -262,12 +270,10 @@ for (const { field, name } of requiredFields) {
   } catch (error) {
     console.error(error);
     showPopup("error", error.message);
+  } finally {
+    setIsLoading(false);
   }
 };
-
-
-
-
 
 
   const [currentDate, setCurrentDate] = useState("");
@@ -293,6 +299,8 @@ for (const { field, name } of requiredFields) {
   }, []);
 
   return (
+    
+
     <div className="flex-1 flex flex-col p-4 sm:p-6 bg-[#f1f2e9] overflow-y-auto scrollbar-none">
       {/* Header */}
       <section className="mb-4 text-white">
@@ -307,6 +315,7 @@ for (const { field, name } of requiredFields) {
           </div>
         </div>
       </section>
+      {isLoading && <Loader />}
 
       {/* Product Images */}
       <h1 className="xxxl:text-[20px] laptop:text-[20px] hd:text-[20px] sm:text-[24px] font-bold text-[#102B01] ">Product Settings</h1>

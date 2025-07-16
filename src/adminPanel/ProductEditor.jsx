@@ -6,10 +6,11 @@ import endpoint_prefix from '../config/ApiConfig';
 import "react-datepicker/dist/react-datepicker.css";
 import { forwardRef } from "react";
 import NotificationPopup from '../components/NotificatioPopup';
+import Loader from '../components/Loader';
 
 export default function ProductEditor() {
   const inputClasses = "w-full p-2 border border-gray-300 rounded-md  text-sm";
-  
+  const [loading, setLoading] = useState(false);
   const [createdProductId, setCreatedProductId] = useState(null);
   const CalendarInput = forwardRef(({ value, onClick, placeholder }, ref) => (
   <div className="relative w-full">
@@ -205,6 +206,8 @@ useEffect(() => {
 
 
 const handleSubmit = async () => {
+  setLoading(true);
+
   const requiredFields = [
     { field: formData.productName, name: "Product Name" },
     { field: formData.sku, name: "SKU" },
@@ -217,22 +220,25 @@ const handleSubmit = async () => {
     return isNaN(num) ? fallback : num;
   };
 
-  const convertToISODate = (ddmmyyyy) => {
-    if (!ddmmyyyy) return "";
-    const [day, month, year] = ddmmyyyy.split("-");
-    return `${year}-${month}-${day}`;
-  };
+const convertToDDMMYY = (input) => {
+  if (!input) return "";
+  const [day, month, year] = input.split("-");
+  return `${day}-${month}-${year.slice(2)}`;
+};
+
+
+
+
 
   for (const { field, name } of requiredFields) {
     if (!field?.trim()) {
       showPopup("error", `${name} is required`);
+      setLoading(false); 
       return;
     }
   }
 
   const payload = new FormData();
-
-  // Core fields
   payload.append("product_name", formData.productName.trim());
   payload.append("sku", formData.sku.trim());
   payload.append("category", formData.category.trim());
@@ -246,10 +252,9 @@ const handleSubmit = async () => {
   payload.append("Features", formData.features.trim());
   payload.append("How_To_Use", formData.howToUse.trim());
   payload.append("Ingredients", formData.ingredients.trim());
-  payload.append("manufacturing_Date", convertToISODate(formData.mfgDate.trim()));
-  payload.append("Expiry_Date", convertToISODate(formData.expDate.trim()));
+ payload.append("manufacturing_Date", convertToDDMMYY(formData.mfgDate));
+payload.append("Expiry_Date", convertToDDMMYY(formData.expDate));
 
-  // Specification object
   const safeSpecs = {
     "item-LWH": formData.specifications.Item_LWH,
     "item-Weight": toNumber(formData.specifications.Item_Weight),
@@ -258,13 +263,11 @@ const handleSubmit = async () => {
   };
   payload.append("Product_Spesifications", JSON.stringify(safeSpecs));
 
-  // Images
   if (images.Primary_Image) payload.append("primary_image", images.Primary_Image);
   if (images.Secondary_Image) payload.append("secondary_image", images.Secondary_Image);
   if (images.Normal_Image1) payload.append("normal1_image", images.Normal_Image1);
   if (images.Normal_Image2) payload.append("normal2_image", images.Normal_Image2);
 
-  // Dynamic endpoint and method
   const isUpdate = createdProductId !== null;
   const endpoint = isUpdate
     ? `${endpoint_prefix}03_Admin_Panel/api/products/${createdProductId}`
@@ -278,24 +281,25 @@ const handleSubmit = async () => {
 
     if (res.ok) {
       const msg = isUpdate ? "Product updated successfully!" : "Product created successfully!";
-      showPopup("success",msg);
+      showPopup("success", msg);
 
       if (!isUpdate) {
         const result = await res.json();
-       const id = result.product_id || null;
-setCreatedProductId(id); // triggers useEffect
-
-
+        const id = result.product_id || null;
+        setCreatedProductId(id);
       }
     } else {
       const errorText = await res.text();
-      showPopup("error" ,  errorText);
+      showPopup("error", errorText);
     }
   } catch (error) {
-    showPopup("error",  error.message);
+    showPopup("error", error.message);
     console.log(error);
+  } finally {
+    setLoading(false); // ✅ Hide loader always
   }
 };
+
 
 
 
@@ -337,6 +341,8 @@ setCreatedProductId(id); // triggers useEffect
           </div>
         </div>
       </section>
+
+   {loading && <Loader />}
 
       {/* Product Images */}
       <h1 className="xxxl:text-[20px] laptop:text-[20px] hd:text-[20px] sm:text-[24px] font-bold text-[#102B01] ">Product Settings</h1>
